@@ -187,8 +187,13 @@ fn handle_request(path: &str, raw_query: Option<&str>) -> Response<Cursor<Vec<u8
         return redirect_response(&url);
     }
 
-    // Optional path service override: /google?q=...
-    let service = path.trim_start_matches('/').trim();
+    // Optional path service override: /google?q=... or /search/google?q=...
+    let trimmed_path = path.trim_start_matches('/');
+    let service = if trimmed_path.starts_with("search/") {
+        trimmed_path.trim_start_matches("search/").trim()
+    } else {
+        trimmed_path.trim()
+    };
     if !service.is_empty() {
         let engine = match service.to_ascii_lowercase().as_str() {
             "google" => Some(Engine::Google),
