@@ -53,7 +53,96 @@ install -Dm755 target/release/sidfrey-router ~/.local/bin/sidfrey-router   # Lin
 sudo install -m755 target/release/sidfrey-router /usr/local/bin/sidfrey-router
 ```
 
+### Building for Android (64-bit ARM)
+
+**Prerequisites:**
+1. Install Android NDK:
+   ```bash
+   # Direct download (no Android Studio needed)
+   wget https://dl.google.com/android/repository/android-ndk-r26b-darwin.zip  # macOS
+   # or
+   wget https://dl.google.com/android/repository/android-ndk-r26b-linux.zip   # Linux
+   
+   unzip android-ndk-r26b-*.zip
+   export ANDROID_NDK_HOME=$PWD/android-ndk-r26b
+   ```
+
+2. Install Rust target and cargo-ndk:
+   ```bash
+   rustup target add aarch64-linux-android
+   cargo install cargo-ndk
+   ```
+
+3. Build for Android:
+   ```bash
+   cargo ndk -t arm64-v8a build --release
+   # Binary will be at: target/aarch64-linux-android/release/sidfrey-router
+   ```
+
+**Note:** This builds for 64-bit ARM Android devices (most modern phones). The binary will be ~2-5MB.
+
 ## Run as a background service
+
+### Android (Termux with Termux:Boot)
+
+**Setup Termux:**
+1. Install [Termux](https://f-droid.org/packages/com.termux/) from F-Droid (not Google Play)
+2. Install [Termux:Boot](https://f-droid.org/packages/com.termux.boot/) addon from F-Droid
+3. Open Termux:Boot once to enable boot permission
+
+**Transfer and run the binary:**
+```bash
+# In Termux, grant storage permission
+termux-setup-storage
+
+# Copy binary from Downloads to Termux home (Downloads folder doesn't allow execution)
+cp ~/storage/downloads/sidfrey-router ~/
+chmod +x ~/sidfrey-router
+
+# Test run
+./sidfrey-router
+# or with custom port
+SIDFREY_PORT=8080 ./sidfrey-router
+```
+
+**Auto-start on boot with Termux:Boot:**
+```bash
+# Create boot directory
+mkdir -p ~/.termux/boot
+
+# Create startup script
+cat > ~/.termux/boot/start-sidfrey.sh << 'EOF'
+#!/data/data/com.termux/files/usr/bin/sh
+# Start Sidfrey Router on boot
+cd ~
+SIDFREY_PORT=7777 ./sidfrey-router > sidfrey.log 2>&1 &
+EOF
+
+# Make executable
+chmod +x ~/.termux/boot/start-sidfrey.sh
+
+# Reboot device to test, or manually run the script
+~/.termux/boot/start-sidfrey.sh
+```
+
+**Managing the service:**
+```bash
+# Check if running
+pgrep sidfrey-router
+
+# View logs
+tail -f ~/sidfrey.log
+
+# Stop the server
+pkill sidfrey-router
+```
+
+**Browser setup on Android:**
+- Chrome/Brave: Settings → Search engine → Add search engine
+- URL: `http://127.0.0.1:7777/?q=%s`
+- Set as default if desired
+
+**Note:** The server will survive Termux app closure but not device reboots (unless using Termux:Boot).
 
 ### Linux (systemd user service)
 
@@ -154,4 +243,10 @@ systemctl --user disable --now sidfrey-router
 rm ~/.config/systemd/user/sidfrey-router.service
 rm ~/.local/bin/sidfrey-router
 systemctl --user daemon-reload
+
+# Android (Termux)
+pkill sidfrey-router
+rm ~/.termux/boot/start-sidfrey.sh
+rm ~/sidfrey-router
+rm ~/sidfrey.log
 ```
