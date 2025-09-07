@@ -1,6 +1,7 @@
 use once_cell::sync::Lazy;
 use std::io::Cursor;
 use std::net::ToSocketAddrs;
+use std::env;
 use tiny_http::{Header, Method, Response, Server, StatusCode};
 use url::form_urlencoded;
 use chrono::Local;
@@ -46,7 +47,40 @@ impl Engine {
     }
 }
 
-static DEFAULT_ENGINE: Engine = Engine::Perplexity;
+static LOG_ENABLED: Lazy<bool> = Lazy::new(|| {
+    env::var("SIDFREY_LOG")
+        .ok()
+        .map(|v| v.to_lowercase() == "true" || v == "1")
+        .unwrap_or(false)
+});
+
+static DEFAULT_ENGINE: Lazy<Engine> = Lazy::new(|| {
+    env::var("SIDFREY_DEFAULT_ENGINE")
+        .ok()
+        .and_then(|s| parse_engine(&s))
+        .unwrap_or(Engine::Perplexity)
+});
+
+fn parse_engine(name: &str) -> Option<Engine> {
+    match name.to_ascii_lowercase().as_str() {
+        "google" => Some(Engine::Google),
+        "youtube" => Some(Engine::YouTube),
+        "wikipedia" | "wiki" => Some(Engine::Wikipedia),
+        "claude" => Some(Engine::Claude),
+        "chatgpt" | "gpt" | "chat" => Some(Engine::ChatGPT),
+        "images" | "gi" | "googleimages" => Some(Engine::GoogleImages),
+        "wolfram" | "wolframalpha" | "wa" => Some(Engine::Wolfram),
+        "reddit" | "r" => Some(Engine::Reddit),
+        "bing" | "b" => Some(Engine::Bing),
+        "amazon" | "a" => Some(Engine::Amazon),
+        "twitter" | "x" | "tw" => Some(Engine::Twitter),
+        "github" | "gh" => Some(Engine::GitHub),
+        "ebay" => Some(Engine::EBay),
+        "ddg" | "duckduckgo" => Some(Engine::DuckDuckGo),
+        "perplexity" | "p" => Some(Engine::Perplexity),
+        _ => None,
+    }
+}
 
 static BANG_MAP: Lazy<Vec<(&'static str, Engine)>> = Lazy::new(|| {
     vec![
@@ -160,13 +194,15 @@ fn handle_request(path: &str, raw_query: Option<&str>) -> Response<Cursor<Vec<u8
     };
 
     let log_search = |engine: Engine| {
-        let now = Local::now();
-        let truncated_query = if query.len() > 100 {
-            format!("{}...", &query[..97])
-        } else {
-            query.clone()
-        };
-        eprintln!("[{}] Search: {} - \"{}\"", now.format("%Y-%m-%d %H:%M:%S"), engine.to_string(), truncated_query);
+        if *LOG_ENABLED {
+            let now = Local::now();
+            let truncated_query = if query.len() > 100 {
+                format!("{}...", &query[..97])
+            } else {
+                query.clone()
+            };
+            eprintln!("[{}] Search: {} - \"{}\"", now.format("%Y-%m-%d %H:%M:%S"), engine.to_string(), truncated_query);
+        }
     };
 
     // Try bangs first
@@ -220,9 +256,9 @@ fn handle_request(path: &str, raw_query: Option<&str>) -> Response<Cursor<Vec<u8
         return Response::from_string("Unknown service").with_status_code(StatusCode(404));
     }
 
-    // No bang and no explicit service: go to default engine (Perplexity)
-    log_search(DEFAULT_ENGINE);
-    redirect_response(&engine_url(DEFAULT_ENGINE, &query))
+    // No bang and no explicit service: go to default engine
+    log_search(*DEFAULT_ENGINE);
+    redirect_response(&engine_url(*DEFAULT_ENGINE, &query))
 }
 
 fn main() {
@@ -240,6 +276,8 @@ fn main() {
     let server = Server::http(socket).expect("failed to bind");
 
     eprintln!("sidfrey-router listening on http://{addr}");
+    eprintln!("  Default engine: {}", DEFAULT_ENGINE.to_string());
+    eprintln!("  Logging: {}", if *LOG_ENABLED { "enabled" } else { "disabled" });
 
     for rq in server.incoming_requests() {
         let method = rq.method().clone();

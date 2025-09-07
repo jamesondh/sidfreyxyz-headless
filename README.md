@@ -1,6 +1,6 @@
 # Sidfrey Router (headless)
 
-Local HTTP router for custom `!bangs`. Similar to [Sidfrey.xyz](https://sidfrey.xyz) ([source](https://github.com/jamesondh/sidfreyxyz)), it parses queries like `hello world !g` and 302-redirects to the right engine. Runs on `localhost`. No cloud. Default engine: **Perplexity**.
+Local HTTP router for custom `!bangs`. Similar to [Sidfrey.xyz](https://sidfrey.xyz) ([source](https://github.com/jamesondh/sidfreyxyz)), it parses queries like `hello world !g` and 302-redirects to the right engine. Runs on `localhost`. No cloud. Default engine: **Perplexity** (configurable).
 
 ## Quick description
 
@@ -13,12 +13,44 @@ Local HTTP router for custom `!bangs`. Similar to [Sidfrey.xyz](https://sidfrey.
 ## Running
 
 ```bash
-# clone and run
+# clone and run with defaults
 cargo run --release
 
-# optional: choose port
-SIDFREY_PORT=7777 cargo run --release
+# configure via environment variables
+SIDFREY_PORT=7777 cargo run --release                     # custom port (default: 7777)
+SIDFREY_LOG=true cargo run --release                      # enable logging (default: false)
+SIDFREY_DEFAULT_ENGINE=google cargo run --release         # change default engine (default: perplexity)
+
+# combine multiple settings
+SIDFREY_PORT=8080 SIDFREY_LOG=true SIDFREY_DEFAULT_ENGINE=duckduckgo cargo run --release
 ```
+
+### Configuration Options
+
+| Environment Variable | Description | Default | Valid Values |
+|---------------------|-------------|---------|--------------|
+| `SIDFREY_PORT` | HTTP server port | `7777` | Any valid port number |
+| `SIDFREY_LOG` | Enable search logging | `false` | `true`, `false`, `1`, `0` |
+| `SIDFREY_DEFAULT_ENGINE` | Default search engine when no bang is used | `perplexity` | See [Available Engines](#available-engines) |
+
+### Available Engines
+
+The following engines can be used as the default (case-insensitive):
+- `google`
+- `youtube`
+- `wikipedia` / `wiki`
+- `claude`
+- `chatgpt` / `gpt` / `chat`
+- `googleimages` / `images` / `gi`
+- `wolfram` / `wolframalpha` / `wa`
+- `reddit` / `r`
+- `bing` / `b`
+- `amazon` / `a`
+- `twitter` / `x` / `tw`
+- `github` / `gh`
+- `ebay`
+- `duckduckgo` / `ddg`
+- `perplexity` / `p`
 
 Test:
 
@@ -115,7 +147,7 @@ cat > ~/.termux/boot/start-sidfrey.sh << 'EOF'
 #!/data/data/com.termux/files/usr/bin/sh
 # Start Sidfrey Router on boot
 cd ~
-SIDFREY_PORT=7777 ./sidfrey-router > sidfrey.log 2>&1 &
+SIDFREY_PORT=7777 SIDFREY_LOG=false SIDFREY_DEFAULT_ENGINE=perplexity ./sidfrey-router > sidfrey.log 2>&1 &
 EOF
 
 # Make executable
@@ -155,9 +187,12 @@ Description=Sidfrey local bang router
 [Service]
 ExecStart=%h/.local/bin/sidfrey-router
 Environment=SIDFREY_PORT=7777
+Environment=SIDFREY_LOG=false
+Environment=SIDFREY_DEFAULT_ENGINE=perplexity
 Restart=on-failure
 # Bind to loopback only (default). If you change the binary, keep it.
 # ExecStart can be /usr/local/bin/sidfrey-router if you installed there.
+# Customize the environment variables as needed
 
 [Install]
 WantedBy=default.target
@@ -194,6 +229,8 @@ Create `~/Library/LaunchAgents/com.sidfrey.router.plist`:
   <key>EnvironmentVariables</key>
   <dict>
     <key>SIDFREY_PORT</key><string>7777</string>
+    <key>SIDFREY_LOG</key><string>false</string>
+    <key>SIDFREY_DEFAULT_ENGINE</key><string>perplexity</string>
   </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -220,7 +257,8 @@ launchctl load ~/Library/LaunchAgents/com.sidfrey.router.plist
 
 ## Usage notes
 
-* Default engine is Perplexity. Change it in code if desired.
+* Default engine is configurable via `SIDFREY_DEFAULT_ENGINE` environment variable (default: Perplexity).
+* Search logging can be enabled with `SIDFREY_LOG=true` for debugging (default: disabled).
 * Path override also works: `/google?q=foo` or `/perplexity?q=bar`.
 * Keep it bound to `127.0.0.1` for safety. If you expose it, you own the risk.
 
